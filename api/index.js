@@ -100,8 +100,10 @@ app.get('/balance/:userId', (req, res) => {
 });
 
 // ✅ Withdraw
-app.post('/withdraw', (req, res) => {
+// ✅ Withdraw — sends money to user via Cashmaal
+app.post('/withdraw', async (req, res) => {
   const { userId, amount, accountNumber, method } = req.body;
+  // method: 'jca' = JazzCash, 'epa' = EasyPaisa
 
   if (!userId || !amount || !accountNumber || !method) {
     return res.status(400).json({ error: 'All fields required' });
@@ -109,19 +111,47 @@ app.post('/withdraw', (req, res) => {
 
   const balance = userBalances[userId] || 0;
 
-  if (balance < amount) {
+  if (balance < parseFloat(amount)) {
     return res.status(400).json({ error: 'Insufficient balance' });
   }
 
-  userBalances[userId] -= amount;
+  try {
+    // Call Cashmaal Send Money API
+    const response = await fetch('https://api.cmaal.com/send_money', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: process.env.CASHMAAL_API_KEY,
+        to_account: accountNumber,
+        amount: amount,
+        currency: 'PKR',
+        method: method
+      })
+    });
 
-  console.log(`💸 Withdrawal: ${amount} PKR to ${accountNumber} via ${method}`);
+    const data = await response.json();
 
-  res.json({
-    success: true,
-    message: `Withdrawal of ${amount} PKR initiated`,
-    remainingBalance: userBalances[userId]
-  });
+    if (data.status == 1) {
+      // Deduct balance only after successful withdrawal
+      userBalances[userId] -= parseFloat(amount);
+
+      console.log(`💸 Withdrawal success: ${amount} PKR to ${accountNumber}`);
+
+      return res.json({
+        success: true,
+        message: `Withdrawal of ${amount} PKR sent to ${accountNumber}`,
+        remainingBalance: userBalances[userId]
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: data.message || 'Withdrawal failed'
+      });
+    }
+
+  } catch (err) {
+    console.error('Withdrawal error:', err);
+    res.status(500).json({ error: 'Server error during withdrawal' });
+  }
 });
-
 module.exports = app;
