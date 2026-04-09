@@ -10,7 +10,7 @@ app.use(express.urlencoded({ extended: true }));
 const IPN_KEY = process.env.CASHMAAL_IPN_KEY;
 const WEB_ID  = process.env.CASHMAAL_WEB_ID;
 
-// Temporary in-memory storage
+// Temporary in-memory storage 2.0
 // Replace with real database later
 const userBalances = {};
 
